@@ -1,36 +1,17 @@
 #!/bin/bash
 
 EPOCHTIME=$(date +%s)
-
+URL=""
 HASH=""
+FILE=""
 PROTOCOL=80
 DEBUG=false
-
-function cleanup {
-    rm -rf "${WORKDIR}"
-}
-
-function CPUSHD {
-    if [[ "${DEBUG}" == true ]]; then
-        pushd "$1" || exit
-    else
-        pushd "$1" > /dev/null || exit
-    fi
-
-}
-
-function CPOPD {
-    if [[ "${DEBUG}" == true ]]; then
-        popd || exit
-    else
-        popd > /dev/null || exit
-    fi
-}
 
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hash) HASH="$2"; shift ;;
+        --file) FILE="$2"; shift ;;
         --debug) DEBUG=true ;;
         *) URL="$1" ;;
     esac
@@ -38,15 +19,28 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 if [[ -z "${URL}" ]]; then
-    echo "Usage: $0 <URL> [--hash HASH] [--debug]"
+    echo "Usage: $0 <URL> [--hash HASH] [--file FILE] [--debug]"
     exit 1
+fi
+
+# Compute md5sum of the file if --file is provided
+if [[ -n "${FILE}" ]]; then
+    if [[ -f "${FILE}" ]]; then
+        HASH=$(md5sum "${FILE}" | awk '{print $1}')
+    else
+        echo "File ${FILE} does not exist."
+        exit 1
+    fi
 fi
 
 # setup tmp dir
 WORKDIR="/tmp/epc/${EPOCHTIME}"
 mkdir -p "${WORKDIR}"
-
-CPUSHD "${WORKDIR}"
+if [[ "${DEBUG}" == true ]]; then
+    pushd "${WORKDIR}" || exit
+else
+    pushd "${WORKDIR}" > /dev/null || exit
+fi
 
 PROTOCOL=$(echo "${URL}" | grep -Eq '^https://' && echo 443)
 HOSTNAME=$(echo "${URL}" | awk -F[:/] '{print $4}')
@@ -68,10 +62,25 @@ if [[ "${DEBUG}" == true ]]; then
     echo "IPS: ${IPS}"
 fi
 
+IPS=$(drill -Q "${HOSTNAME}")
+
+# Debug output
+if [[ "${DEBUG}" == true ]]; then
+    echo "IPS: ${IPS}"
+fi
+
+# Define color codes
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
 # Iterate over each IP address
 for IP in ${IPS}; do
   mkdir "${IP}"
-  CPUSHD "./${IP}"
+  if [[ "${DEBUG}" == true ]]; then
+      pushd "./${IP}" || exit
+  else
+      pushd "./${IP}" > /dev/null || exit
+  fi
   curl --silent --resolve "${HOSTNAME}:${PROTOCOL}:${IP}" -O "${URL}"
   
   # Debug output
@@ -83,17 +92,23 @@ for IP in ${IPS}; do
   if [[ -n "${HASH}" ]]; then
       COMPUTED_HASH=$(find . -type f -exec md5sum {} \; | awk '{print $1}')
       if [[ "${COMPUTED_HASH}" == "${HASH}" ]]; then
-          echo "Hash match  || ${IP}"
+          echo "Hash matches || ${IP}"
       else
-          echo "Hash does NOT match || ${IP}"
-
+          echo -e "Hash does ${RED}NOT${NC} match || ${IP}"
       fi
   else
       find . -type f -exec md5sum {} \;
   fi
 
-  CPOPD
-
+  if [[ "${DEBUG}" == true ]]; then
+      popd || exit
+  else
+      popd > /dev/null || exit
+  fi
 done
 
-CPOPD
+if [[ "${DEBUG}" == true ]]; then
+    popd || exit
+else
+    popd > /dev/null || exit
+fi
