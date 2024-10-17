@@ -4,6 +4,7 @@ EPOCHTIME=$(date +%s)
 URL=""
 HASH=""
 FILE=""
+HASH_ALG="md5"
 PROTOCOL=80
 DEBUG=false
 
