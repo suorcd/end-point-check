@@ -83,15 +83,16 @@ for IP in ${IPS}; do
   if [[ -n "${HASH}" ]]; then
       COMPUTED_HASH=$(find . -type f -exec md5sum {} \; | awk '{print $1}')
       if [[ "${COMPUTED_HASH}" == "${HASH}" ]]; then
-          echo "Hash matches."
+          echo "Hash match  || ${IP}"
       else
-          echo "Hash does not match."
+          echo "Hash does NOT match || ${IP}"
+
       fi
   else
       find . -type f -exec md5sum {} \;
   fi
 
-CPOPD
+  CPOPD
 
 done
 
