@@ -1,12 +1,21 @@
 #!/bin/bash
 
 EPOCHTIME=$(date +%s)
-URL="$1"
-HASH="$2"
+URL=""
+HASH=""
 PROTOCOL=80
 
+# Parse command-line arguments
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --hash) HASH="$2"; shift ;;
+        *) URL="$1" ;;
+    esac
+    shift
+done
+
 if [[ -z "${URL}" ]]; then
-    echo "Usage: $0 <URL> [HASH]"
+    echo "Usage: $0 <URL> [--hash HASH]"
     exit 1
 fi
 
@@ -26,7 +35,19 @@ for IP in ${IPS}; do
   mkdir "${IP}"
   pushd "./${IP}" || exit
   curl --silent --resolve "${HOSTNAME}:${PROTOCOL}:${IP}" -O "${URL}"
-  popd || exit
+# Compute md5sum and compare with provided hash if HASH is provided
+if [[ -n "${HASH}" ]]; then
+    COMPUTED_HASH=$(find . -type f -exec md5sum {} \; | awk '{print $1}')
+    if [[ "${COMPUTED_HASH}" == "${HASH}" ]]; then
+        echo "Hash matches."
+    else
+        echo "Hash does not match."
+    fi
+else
+    find . -type f -exec md5sum {} \;
+fi
+
+popd || exit
 done
 
 # Compute md5sum and compare with provided hash if HASH is provided
