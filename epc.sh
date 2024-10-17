@@ -13,6 +13,7 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hash) HASH="$2"; shift ;;
         --file) FILE="$2"; shift ;;
+        --hash-alg) HASH_ALG="$2"; shift ;;
         --debug) DEBUG=true ;;
         *) URL="$1" ;;
     esac
@@ -20,14 +21,14 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 if [[ -z "${URL}" ]]; then
-    echo "Usage: $0 <URL> [--hash HASH] [--file FILE] [--debug]"
+    echo "Usage: $0 <URL> [--hash HASH] [--file FILE] [--hash-alg HASH_ALG] [--debug]"
     exit 1
 fi
 
-# Compute md5sum of the file if --file is provided
+# Compute hash of the file if --file is provided
 if [[ -n "${FILE}" ]]; then
     if [[ -f "${FILE}" ]]; then
-        HASH=$(md5sum "${FILE}" | awk '{print $1}')
+        HASH=$(eval "${HASH_ALG}sum ${FILE}" | awk '{print $1}')
     else
         echo "File ${FILE} does not exist."
         exit 1
@@ -53,16 +54,10 @@ if [[ "${DEBUG}" == true ]]; then
     echo "WORKDIR: ${WORKDIR}"
     echo "PROTOCOL: ${PROTOCOL}"
     echo "HOSTNAME: ${HOSTNAME}"
+    echo "HASH_ALG: ${HASH_ALG}"
 fi
 
 # Obtain the A records for the HOSTNAME using drill
-IPS=$(drill -Q "${HOSTNAME}")
-
-# Debug output
-if [[ "${DEBUG}" == true ]]; then
-    echo "IPS: ${IPS}"
-fi
-
 IPS=$(drill -Q "${HOSTNAME}")
 
 # Debug output
@@ -89,16 +84,16 @@ for IP in ${IPS}; do
       echo "Downloaded content from ${URL} to ${IP} directory"
   fi
 
-  # Compute md5sum and compare with provided hash if HASH is provided
+  # Compute hash and compare with provided hash if HASH is provided
   if [[ -n "${HASH}" ]]; then
-      COMPUTED_HASH=$(find . -type f -exec md5sum {} \; | awk '{print $1}')
+      COMPUTED_HASH=$(find . -type f -exec ${HASH_ALG}sum {} \; | awk '{print $1}')
       if [[ "${COMPUTED_HASH}" == "${HASH}" ]]; then
           echo "Hash matches || ${IP}"
       else
-          echo -e "Hash does ${RED}NOT${NC} match || ${IP}"
+          echo -e "Hash ${RED}NOT${NC} matches || ${IP}"
       fi
   else
-      find . -type f -exec md5sum {} \;
+      find . -type f -exec ${HASH_ALG}sum {} \;
   fi
 
   if [[ "${DEBUG}" == true ]]; then
